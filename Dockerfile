@@ -44,7 +44,7 @@ RUN git clone ${TELLER_GITHUB_REPO} .
 # Create a startup script
 RUN echo '#!/bin/bash\n\
 set -e\n\
-cd teller-protocol-v2/packages/subgraph-substreamed-pool-v1\n\
+cd packages/subgraph-substreamed-pool-v1\n\
 echo "Running cargo build..."\n\
 cargo run --bin exportbuild\n\
 echo "Running make commands..."\n\
@@ -62,4 +62,3 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Single CMD that runs all commands in sequence
 CMD ["/app/start.sh"]
-
