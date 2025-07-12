@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  substreams-sink:
+    build:
+      context: .
+      args:
+        TELLER_GITHUB_REPO: https://github.com/teller-protocol/teller-protocol-v2.git
+    restart: unless-stopped
+    environment:
+      - DSN="postgres://postgres.xxxx@aws-0-us-east-2.pooler.supabase.com:5432/postgres"
+      - SUBSTREAMS_API_TOKEN="xxxx"
+      - EVM_NETWORK_NAME="arbitrum" 
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
