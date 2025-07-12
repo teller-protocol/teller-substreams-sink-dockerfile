@@ -1,5 +1,7 @@
 FROM golang:1.24-bullseye
 
+
+
 RUN apt-get update && apt-get install -y \
     git \
     curl \
@@ -38,6 +40,15 @@ RUN git clone ${TELLER_GITHUB_REPO} .
 # RUN if [ -z "$TELLER_GITHUB_REPO" ]; then echo "TELLER_GITHUB_REPO build arg is required" && exit 1; fi
 # RUN git clone ${TELLER_GITHUB_REPO} .
 
+
+ARG DSN
+ARG SUBSTREAMS_API_TOKEN
+ARG EVM_NETWORK_NAME
+
+# Convert to ENV so they persist at runtime too
+ENV DSN=${DSN}
+ENV SUBSTREAMS_API_TOKEN=${SUBSTREAMS_API_TOKEN}
+ENV EVM_NETWORK_NAME=${EVM_NETWORK_NAME}
 
 
 
