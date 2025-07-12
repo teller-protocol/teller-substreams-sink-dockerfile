@@ -1,16 +1,75 @@
-FROM golang:1.24-bullseye
+# Build stage
+FROM golang:1.24-bullseye AS builder
+
 
 
 
 RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-    
+git \
+curl \
+ca-certificates \
+build-essential \
+&& rm -rf /var/lib/apt/lists/*
+
   # Install Rust (needed for cargo commands)
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
+
+
+
+
+# Install buf CLI
+RUN curl -sSL https://github.com/bufbuild/buf/releases/latest/download/buf-Linux-x86_64 -o /usr/local/bin/buf \
+    && chmod +x /usr/local/bin/buf
+
+# Install Go proto tools
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+
+# Install substreams cli from source
+RUN git clone https://github.com/streamingfast/substreams.git /tmp/substreams \
+    && cd /tmp/substreams \
+    && go install ./cmd/substreams \
+    && rm -rf /tmp/substreams
+
+
+
+# Clone the teller repository
+WORKDIR /build
+
+
+    
+# Verify installations
+RUN substreams --version
+
+ARG DSN
+ARG SUBSTREAMS_API_TOKEN
+ARG EVM_NETWORK_NAME
+
+# Convert to ENV so they persist at runtime too
+ENV DSN=${DSN}
+ENV SUBSTREAMS_API_TOKEN=${SUBSTREAMS_API_TOKEN}
+ENV EVM_NETWORK_NAME=${EVM_NETWORK_NAME}
+
+
+ 
+ENV TELLER_GITHUB_REPO=https://github.com/teller-protocol/teller-protocol-v2.git
+RUN git clone ${TELLER_GITHUB_REPO} .
+ 
+RUN cd packages/subgraph-substreamed-pool-v1 && \
+    cargo run --bin exportbuild && \
+    make && make build && make protogen && make pack
+    
+
+
+# Runtime stage
+FROM golang:1.24-bullseye
+
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+
+
+
 
 # Install substreams cli from source
 RUN git clone https://github.com/streamingfast/substreams.git /tmp/substreams \
@@ -23,53 +82,19 @@ RUN git clone https://github.com/streamingfast/substreams-sink-sql.git /tmp/subs
     && cd /tmp/substreams-sink-sql \
     && go install ./cmd/substreams-sink-sql \
     && rm -rf /tmp/substreams-sink-sql
-
-WORKDIR /app
-
+ 
 
 # Verify installations
 RUN substreams --version && substreams-sink-sql --version
 
 
-# Clone the teller repository
-ENV TELLER_GITHUB_REPO=https://github.com/teller-protocol/teller-protocol-v2.git
-RUN git clone ${TELLER_GITHUB_REPO} .
-
-# Clone the teller repository
-# ARG TELLER_GITHUB_REPO
-# RUN if [ -z "$TELLER_GITHUB_REPO" ]; then echo "TELLER_GITHUB_REPO build arg is required" && exit 1; fi
-# RUN git clone ${TELLER_GITHUB_REPO} .
-
-
 ARG DSN
-ARG SUBSTREAMS_API_TOKEN
-ARG EVM_NETWORK_NAME
-
-# Convert to ENV so they persist at runtime too
 ENV DSN=${DSN}
-ENV SUBSTREAMS_API_TOKEN=${SUBSTREAMS_API_TOKEN}
-ENV EVM_NETWORK_NAME=${EVM_NETWORK_NAME}
 
+# Copy built artifacts from builder stage
+COPY --from=builder /build /app
+WORKDIR /app/packages/subgraph-substreamed-pool-v1
 
+CMD ["sh", "-c", "substreams-sink-sql setup \"$DSN\" substreams.yaml && substreams-sink-sql run \"$DSN\" substreams.yaml"]
 
-# Create a startup script
-RUN echo '#!/bin/bash\n\
-set -e\n\
-cd packages/subgraph-substreamed-pool-v1\n\
-echo "Running cargo build..."\n\
-cargo run --bin exportbuild\n\
-echo "Running make commands..."\n\
-make && make build && make pack\n\
-echo "Setting up substreams-sink-sql..."\n\
-substreams-sink-sql setup "$DSN" substreams.yaml\n\
-echo "Starting substreams-sink-sql..."\n\
-substreams-sink-sql run "$DSN" substreams.yaml' > /app/start.sh
-
-RUN chmod +x /app/start.sh
-
-# Add healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD pgrep substreams-sink-sql || exit 1
-
-# Single CMD that runs all commands in sequence
-CMD ["/app/start.sh"]
+   
