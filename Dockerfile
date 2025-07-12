@@ -1,4 +1,4 @@
-# Build stage
+ # Build stage
 FROM golang:1.24-bullseye AS builder
 
 
@@ -15,6 +15,7 @@ build-essential \
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
+RUN rustup target add wasm32-unknown-unknown
 
 
 
@@ -55,13 +56,20 @@ ENV EVM_NETWORK_NAME=${EVM_NETWORK_NAME}
 
  
 ENV TELLER_GITHUB_REPO=https://github.com/teller-protocol/teller-protocol-v2.git
-RUN git clone ${TELLER_GITHUB_REPO} .
+RUN git clone ${TELLER_GITHUB_REPO} ./teller-protocol-v2
  
-RUN cd packages/subgraph-substreamed-pool-v1 && \
-    cargo run --bin exportbuild && \
-    make && make build && make protogen && make pack
-    
+ 
 
+
+WORKDIR /build/teller-protocol-v2/packages/subgraph-substreamed-pool-v1
+RUN cargo run --bin exportbuild
+RUN make
+RUN make build
+RUN make protogen
+
+ # this is failing due to the proto or buf  stuff... 
+RUN make pack    
+ 
 
 # Runtime stage
 FROM golang:1.24-bullseye
@@ -96,5 +104,7 @@ COPY --from=builder /build /app
 WORKDIR /app/packages/subgraph-substreamed-pool-v1
 
 CMD ["sh", "-c", "substreams-sink-sql setup \"$DSN\" substreams.yaml && substreams-sink-sql run \"$DSN\" substreams.yaml"]
+
+   
 
    
