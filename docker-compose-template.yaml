@@ -5,9 +5,9 @@ services:
       context: .
       args:
         TELLER_GITHUB_REPO: https://github.com/teller-protocol/teller-protocol-v2.git
-        DSN:
-        SUBSTREAMS_API_TOKEN:
-        EVM_NETWORK_NAME:
+        DSN: ""
+        SUBSTREAMS_API_TOKEN: ""
+        EVM_NETWORK_NAME: ""
     restart: unless-stopped
     logging:
       driver: "json-file"

@@ -62,10 +62,10 @@ RUN git clone ${TELLER_GITHUB_REPO} ./teller-protocol-v2
 WORKDIR /build/teller-protocol-v2/packages/subgraph-substreamed-pool-v1
 
 RUN cargo run --bin exportbuild
-RUN substreams pack substreams.yaml --skip-package-validation
 RUN make
 RUN make build
 RUN substreams info substreams.yaml
+RUN substreams pack substreams.yaml
 RUN make protogen
 
  # this is failing due to the proto or buf  stuff... 
